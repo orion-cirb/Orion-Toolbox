@@ -5,6 +5,7 @@ import Cellpose.CellposeTaskSettings;
 import Cellpose.CellposeSegmentImgPlusAdvanced;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.plugin.Duplicator;
@@ -306,21 +307,24 @@ public class Tools {
       return(bg);
     }
     
-    /**
-     * Clear outside roi
+     /**
+     * Clear out side roi
      * @param img
      * @param roi
      */
     public void clearOutSide(ImagePlus img, Roi roi) {
+        PolygonRoi poly = new PolygonRoi(roi.getFloatPolygon(), Roi.FREEROI);
+        poly.setLocation(0, 0);
         for (int n = 1; n <= img.getNSlices(); n++) {
             ImageProcessor ip = img.getImageStack().getProcessor(n);
-            ip.setRoi(roi);
+            ip.setRoi(poly);
             ip.setBackgroundValue(0);
             ip.setColor(0);
-            ip.fillOutside(roi);
+            ip.fillOutside(poly);
         }
         img.updateAndDraw();
     }
+   
     
      /**
      * Label object
