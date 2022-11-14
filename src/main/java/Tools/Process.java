@@ -53,7 +53,7 @@ import org.scijava.util.ArrayUtils;
 /**
  * @author Orion-CIRB
  */
-public class Tools {
+public class Process {
 
     private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
     public Calibration cal;
@@ -281,14 +281,14 @@ public class Tools {
      * @return 
      */
     public double findMeanStdBackground(ImagePlus img) {
-      double[] bg = new double[2];
+      double bg = 0;
       ImagePlus imgProj = doZProjection(img, ZProjector.MIN_METHOD);
       ImageProcessor imp = imgProj.getProcessor();
-      bg[0] = imp.getStatistics().mean;
-      bg[1] = imp.getStatistics().stdDev;
-      System.out.println("Background (mean +- std of the min projection) = " + bg[0] + " +- " + bg[1]);
+      bg = imp.getStatistics().mean;
+      bg += imp.getStatistics().stdDev;
+      System.out.println("Background (mean + std of the min projection) = " + bg);
       flush_close(imgProj);
-      return(bg[0]+bg[1]);
+      return(bg);
     }
     
     /**
@@ -357,7 +357,7 @@ public class Tools {
     public ImageFloat localThickness3D (ImagePlus img, boolean inverse) {
         IJ.showStatus("Computing distance map...");
         img.setCalibration(cal);
-        ImageFloat edt = new EDT().run(ImageHandler.wrap(img), 0,inverse, ThreadUtil.getNbCpus());
+        ImageFloat edt = new EDT().run(ImageHandler.wrap(img), 0, inverse, ThreadUtil.getNbCpus());
         return(edt);
     }
     
@@ -402,7 +402,7 @@ public class Tools {
     }
     
      /**
-     * Find volume of objects  
+     * Find sum volume of objects  
      * @param dotsPop
      * @return vol
      */
@@ -415,7 +415,7 @@ public class Tools {
     }
     
      /**
-     * Find intensity of objects  
+     * Find sum intensity of objects  
      * @param dotsPop
      * @param img
      * @return intensity
