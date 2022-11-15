@@ -56,7 +56,7 @@ import org.scijava.util.ArrayUtils;
 public class Process {
 
     private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
-    public Calibration cal;
+    public Calibration cal = new Calibration();
     
      // Omnipose
     private final String omniposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/omnipose" : System.getProperty("user.home")+"\\miniconda3\\envs\\OmniPose";
