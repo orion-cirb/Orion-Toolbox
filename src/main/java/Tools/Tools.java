@@ -53,10 +53,10 @@ import org.scijava.util.ArrayUtils;
 /**
  * @author Orion-CIRB
  */
-public class Process {
+public class Tools {
 
     private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
-    public Calibration cal = new Calibration();
+    public Calibration cal;
     
      // Omnipose
     private final String omniposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/omnipose" : System.getProperty("user.home")+"\\miniconda3\\envs\\OmniPose";
@@ -382,23 +382,15 @@ public class Process {
     }
     
     /**
-     * Take only object above an intensity Threshold
-     * @param imgLabels
-     * @param imgRaw
-     * @param intensityThresh
-     * @return 
+     * Remove objects in population with intensity < intTh
+     * @param pop
+     * @param img
+     * @param intTh 
      */
-    public ImagePlus filterDetectionsByIntensity(ImagePlus imgLabels, ImagePlus imgRaw, double intensityThresh) {
-        double background = findMeanStdBackground(imgRaw);
-        Objects3DIntPopulation popIn = new Objects3DIntPopulation(ImageHandler.wrap(imgLabels.getStack()));
-        Objects3DIntPopulation popOut = new Objects3DIntPopulation();
-        ImageHandler imhRaw = ImageHandler.wrap(imgRaw);
-        for (Object3DInt obj: popIn.getObjects3DInt()) {
-            if (new MeasureIntensity(obj, imhRaw).getValueMeasurement(MeasureIntensity.INTENSITY_AVG) > intensityThresh*background) {
-                popOut.addObject(obj);
-            }
-        }
-        return(popOut.drawImage().getImagePlus());
+    public void intensityFilter(Objects3DIntPopulation pop, ImagePlus img, double intTh) {
+        ImageHandler imh = ImageHandler.wrap(img);
+        pop.getObjects3DInt().removeIf(p -> (new MeasureIntensity(p, imh).getValueMeasurement(MeasureIntensity.INTENSITY_MAX) < intTh));
+        pop.resetLabels();
     }
     
      /**
@@ -563,21 +555,12 @@ public class Process {
         // Resize image to be in a StarDist-friendly scale
         int imgWidth = img.getWidth();
         int imgHeight = img.getHeight();
-        ImagePlus imgIn = null;
-        if (resize) {
-            if (factor > 1) {
-                imgIn = img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, "bicubic");
-            }
-            else 
-                imgIn = new ImagePlus("", img.getProcessor().resize((int)(imgWidth*factor), (int)(imgHeight*factor), false));
-            resize = true;
-        }
-        else
-            imgIn = new Duplicator().run(img);
+        String method = (factor > 1) ? "bicubic" : "none";
+        ImagePlus imgIn = (resize) ? img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, method) : new Duplicator().run(img);
         
         if (blockRad != 0)
              // Remove outliers
-             IJ.run(imgIn, "Remove Outliers", "block_radius_x="+blockRad+" block_radius_y="+blockRad+" standard_deviations=1 stack");
+            IJ.run(imgIn, "Remove Outliers...", "radius="+blockRad+" threshold=1 which=Bright stack");
 
         // StarDist
         File starDistModelFile = new File(stardistModelsPath+File.separator+stardistModel);
@@ -611,22 +594,12 @@ public class Process {
     */
     public Objects3DIntPopulation cellposeDetection(ImagePlus img, String cellposeModel, int cellposeDiameter, 
             double cellposeMaskThreshold, double cellposeFlowThreshold, int factor, boolean resize, boolean useGPU){
-        // Resize to be in a cellpose-friendly scale
-        ImagePlus imgIn = null;
+
+        // Resize image to be in a StarDist-friendly scale
         int imgWidth = img.getWidth();
         int imgHeight = img.getHeight();
-        if (resize) {
-            if (factor > 1) {
-                imgIn = img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, "bicubic");
-            }
-            else 
-                imgIn = new ImagePlus("", img.getProcessor().resize((int)(imgWidth*factor), (int)(imgHeight*factor), false));
-            resize = true;
-        }
-        else
-            imgIn = new Duplicator().run(img);
-        
-        imgIn.setCalibration(cal);
+        String method = (factor > 1) ? "bicubic" : "none";
+        ImagePlus imgIn = (resize) ? img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, method) : new Duplicator().run(img);
         
         // Set Cellpose settings
         CellposeTaskSettings settings = new CellposeTaskSettings(cellposeModel, 1, cellposeDiameter, cellposeEnvDirPath);
@@ -664,29 +637,18 @@ public class Process {
     */
     public Objects3DIntPopulation omniposeDetection(ImagePlus img, String omniposeModel, int omniposeDiameter, 
             double omniposeMaskThreshold, double omniposeFlowThreshold, int factor, boolean resize, boolean useGPU){
-        // Resize to be in a Omnipose-friendly scale
-        ImagePlus imgIn = null;
+        
+        // Resize image to be in a StarDist-friendly scale
         int imgWidth = img.getWidth();
         int imgHeight = img.getHeight();
-        if (resize) {
-            if (factor > 1) {
-                imgIn = img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, "bicubic");
-            }
-            else 
-                imgIn = new ImagePlus("", img.getProcessor().resize((int)(imgWidth*factor), (int)(imgHeight*factor), false));
-            resize = true;
-        }
-        else
-            imgIn = new Duplicator().run(img);
-        
-        imgIn.setCalibration(cal);
+        String method = (factor > 1) ? "bicubic" : "none";
+        ImagePlus imgIn = (resize) ? img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, method) : new Duplicator().run(img);
         
         // Set Omnipose settings
         CellposeTaskSettings settings = new CellposeTaskSettings(omniposeModel, 1, omniposeDiameter, omniposeEnvDirPath);
         settings.setVersion("0.7");
         settings.setCluster(true);
         settings.setOmni(true);
-        settings.useMxNet(false);
         settings.setCellProbTh(omniposeMaskThreshold);
         settings.setFlowTh(omniposeFlowThreshold);
         settings.useGpu(useGPU);

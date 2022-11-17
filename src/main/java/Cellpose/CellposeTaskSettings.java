@@ -24,7 +24,6 @@ public class CellposeTaskSettings {
     boolean omni = false;
     boolean invert = false;
     boolean cluster = false;
-    boolean useMxnet = true;
     boolean verbose = false;
     
     
@@ -110,10 +109,6 @@ public class CellposeTaskSettings {
         return this;
     }
     
-    public CellposeTaskSettings useMxNet(boolean useMxnet) {
-        this.useMxnet = useMxnet;
-        return this;
-    }
 
     public CellposeTaskSettings setOmni(boolean omni) {
         this.omni = omni;

@@ -73,10 +73,7 @@ public class CellposeTask {
         
         if (settings.verbose)
             options.add("--verbose");
-        
-        if (settings.useMxnet)
-            options.add("--Mxnet");
-        
+                
         options.add("--save_tif");
 
         options.add("--no_npy");
