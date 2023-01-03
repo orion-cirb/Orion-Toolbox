@@ -197,8 +197,6 @@ public class Tools {
      /**
      * Find channels name
      * @param imageName
-     * @param meta
-     * @param reader
      * @return 
      * @throws loci.common.services.DependencyException
      * @throws loci.common.services.ServiceException
@@ -206,54 +204,54 @@ public class Tools {
      * @throws java.io.IOException
      */
     public String[] findChannels (String imageName, IMetadata meta, ImageProcessorReader reader) throws DependencyException, ServiceException, FormatException, IOException {
+        ArrayList<String> channels = new ArrayList<>();
         int chs = reader.getSizeC();
-        String[] channels = new String[chs];
         String imageExt =  FilenameUtils.getExtension(imageName);
         switch (imageExt) {
             case "nd" :
                 for (int n = 0; n < chs; n++) 
                 {
                     if (meta.getChannelID(0, n) == null)
-                        channels[n] = Integer.toString(n);
+                        channels.add(Integer.toString(n));
                     else 
-                        channels[n] = meta.getChannelName(0, n);
-                }
-                break;
-            case "nd2" :
-                for (int n = 0; n < chs; n++) 
-                {
-                    if (meta.getChannelID(0, n) == null)
-                        channels[n] = Integer.toString(n);
-                    else 
-                        channels[n] = meta.getChannelName(0, n);
+                        channels.add(meta.getChannelName(0, n).toString());
                 }
                 break;
             case "lif" :
                 for (int n = 0; n < chs; n++) 
                     if (meta.getChannelID(0, n) == null || meta.getChannelName(0, n) == null)
-                        channels[n] = Integer.toString(n);
+                        channels.add(Integer.toString(n));
                     else 
-                        channels[n] = meta.getChannelName(0, n);
+                        channels.add(meta.getChannelName(0, n).toString());
                 break;
             case "czi" :
                 for (int n = 0; n < chs; n++) 
                     if (meta.getChannelID(0, n) == null)
-                        channels[n] = Integer.toString(n);
+                        channels.add(Integer.toString(n));
                     else 
-                        channels[n] = meta.getChannelFluor(0, n);
+                        channels.add(meta.getChannelFluor(0, n).toString());
                 break;
+            case "ics" :
+                for (int n = 0; n < chs; n++) 
+                    if (meta.getChannelID(0, n) == null)
+                        channels.add(Integer.toString(n));
+                    else 
+                        channels.add(meta.getChannelExcitationWavelength(0, n).value().toString());
+                break; 
             case "ics2" :
                 for (int n = 0; n < chs; n++) 
                     if (meta.getChannelID(0, n) == null)
-                        channels[n] = Integer.toString(n);
+                        channels.add(Integer.toString(n));
                     else 
-                        channels[n] = meta.getChannelExcitationWavelength(0, n).value().toString();
-                break;    
+                        channels.add(meta.getChannelExcitationWavelength(0, n).value().toString());
+                break;        
             default :
                 for (int n = 0; n < chs; n++)
-                    channels[n] = Integer.toString(n);
+                    channels.add(Integer.toString(n));
+
         }
-        return(channels);         
+        channels.add("None");
+        return(channels.toArray(new String[channels.size()]));         
     }
     
     /**
@@ -369,6 +367,16 @@ public class Tools {
         pop.getObjects3DInt().removeIf(p -> (p.getObject3DPlanes().size() == 1));
         pop.resetLabels();
     }
+    
+    /**
+     * Remove object touching border image
+     */
+    public void removeTouchingBorder(Objects3DIntPopulation pop, ImagePlus img) {
+        ImageHandler imh = ImageHandler.wrap(img);
+        pop.getObjects3DInt().removeIf(p -> (new Object3DComputation(p).touchBorders(imh, false)));
+        pop.resetLabels();
+    }
+    
     
     /**
      * Remove object with size < min and size > max

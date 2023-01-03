@@ -63,5 +63,24 @@ public class Clij_Proccesing {
         return(imgCLBin);
     }
     
+     /**
+     * Laplace of Gaussian filter using CLIJ2
+     * @param img
+     * @param sizeXYZ
+     * @return 
+     */ 
+    public ImagePlus  LOG_filter(ImagePlus img, double sizeXYZ) {
+       ClearCLBuffer imgCL = clij2.push(img);
+       ClearCLBuffer imgCLDOG = clij2.create(imgCL);
+       clij2.gaussianBlur3D(imgCL, imgCLDOG, sizeXYZ, sizeXYZ, sizeXYZ);
+       clij2.release(imgCL);
+       ClearCLBuffer imgCLLOG = clij2.create(imgCL);
+       clij2.laplaceBox(imgCLDOG, imgCLLOG);
+       clij2.release(imgCLDOG);
+       ImagePlus imgLOG = clij2.pull(imgCLLOG);
+       clij2.release(imgCLLOG);
+       return(imgLOG);
+    }  
+    
     
 }
