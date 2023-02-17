@@ -18,6 +18,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import loci.common.services.DependencyException;
@@ -151,6 +152,20 @@ public class Tools {
         }
         return true;
     }
+
+    /**
+     * Find stardist models in Fiji models folder
+     * 
+    */
+    public String[] findStardistModels() {
+        FilenameFilter filter = (dir, name) -> name.endsWith(".zip");
+        File[] modelList = stardistModelsPath.listFiles(filter);
+        String[] modelFiles = new String[modelList.length];
+        for (int i = 0; i < modelList.length; i++)
+            modelFiles[i] = modelList[i].getName();
+        return modelFiles;
+    }
+
     
     /**
      * Find images in folder
@@ -196,63 +211,51 @@ public class Tools {
     
      /**
      * Find channels name
-     * @param imageName
-     * @return 
      * @throws loci.common.services.DependencyException
      * @throws loci.common.services.ServiceException
      * @throws loci.formats.FormatException
      * @throws java.io.IOException
      */
     public String[] findChannels (String imageName, IMetadata meta, ImageProcessorReader reader) throws DependencyException, ServiceException, FormatException, IOException {
-        ArrayList<String> channels = new ArrayList<>();
         int chs = reader.getSizeC();
+        String[] channels = new String[chs+1];
         String imageExt =  FilenameUtils.getExtension(imageName);
         switch (imageExt) {
             case "nd" :
                 for (int n = 0; n < chs; n++) 
-                {
-                    if (meta.getChannelID(0, n) == null)
-                        channels.add(Integer.toString(n));
-                    else 
-                        channels.add(meta.getChannelName(0, n).toString());
-                }
+                    channels[n] = (meta.getChannelName(0, n).toString().equals("")) ? Integer.toString(n) : meta.getChannelName(0, n).toString();
+                break;
+            case "nd2" :
+                for (int n = 0; n < chs; n++) 
+                    channels[n] = (meta.getChannelName(0, n).toString().equals("")) ? Integer.toString(n) : meta.getChannelName(0, n).toString();
                 break;
             case "lif" :
                 for (int n = 0; n < chs; n++) 
                     if (meta.getChannelID(0, n) == null || meta.getChannelName(0, n) == null)
-                        channels.add(Integer.toString(n));
+                        channels[n] = Integer.toString(n);
                     else 
-                        channels.add(meta.getChannelName(0, n).toString());
+                        channels[n] = meta.getChannelName(0, n).toString();
                 break;
             case "czi" :
                 for (int n = 0; n < chs; n++) 
-                    if (meta.getChannelID(0, n) == null)
-                        channels.add(Integer.toString(n));
-                    else 
-                        channels.add(meta.getChannelFluor(0, n).toString());
+                    channels[n] = (meta.getChannelFluor(0, n).toString().equals("")) ? Integer.toString(n) : meta.getChannelFluor(0, n).toString();
                 break;
             case "ics" :
                 for (int n = 0; n < chs; n++) 
-                    if (meta.getChannelID(0, n) == null)
-                        channels.add(Integer.toString(n));
-                    else 
-                        channels.add(meta.getChannelExcitationWavelength(0, n).value().toString());
-                break; 
+                    channels[n] = (meta.getChannelID(0, n) == null) ? channels[n] = Integer.toString(n) : meta.getChannelExcitationWavelength(0, n).value().toString();
+                break;    
             case "ics2" :
                 for (int n = 0; n < chs; n++) 
-                    if (meta.getChannelID(0, n) == null)
-                        channels.add(Integer.toString(n));
-                    else 
-                        channels.add(meta.getChannelExcitationWavelength(0, n).value().toString());
-                break;        
+                    channels[n] = (meta.getChannelID(0, n) == null) ? channels[n] = Integer.toString(n) : meta.getChannelExcitationWavelength(0, n).value().toString();
+                break; 
             default :
                 for (int n = 0; n < chs; n++)
-                    channels.add(Integer.toString(n));
-
+                    channels[n] = Integer.toString(n);
         }
-        channels.add("None");
-        return(channels.toArray(new String[channels.size()]));         
+        channels[chs] = "None";
+        return(channels);     
     }
+    
     
     /**
      * Do Z projection
@@ -304,6 +307,56 @@ public class Tools {
       flush_close(imgProj);
       return(bg);
     }
+    
+    /**
+     * Find background image intensity:
+     * Z projection over average intensity
+     * return average of intensity
+     * @param img
+     * @return 
+     */
+    public double findAvgBackground(ImagePlus img) {
+      ImagePlus imgProj = doZProjection(img, ZProjector.AVG_METHOD);
+      ImageProcessor imp = imgProj.getProcessor();
+      double bg = imp.getStatistics().mean;
+      System.out.println("Background (mean of the average projection) = " + bg);
+      flush_close(imgProj);
+      return(bg);
+    }
+    
+    /**
+     * Auto find background from scroolling roi
+     * @param img
+     * @param roiBgSize
+     * @return 
+     */
+    public RoiBg findRoiBackgroundAuto(ImagePlus img, int roiBgSize) {
+        // scroll image and measure bg intensity in roi 
+        // take roi lower intensity
+        
+        ArrayList<RoiBg> intBgFound = new ArrayList<>();
+        for (int x = 0; x < img.getWidth() - roiBgSize; x += roiBgSize) {
+            for (int y = 0; y < img.getHeight() - roiBgSize; y += roiBgSize) {
+                Roi roi = new Roi(x, y, roiBgSize, roiBgSize);
+                img.setRoi(roi);
+                ImagePlus imgCrop = img.crop("stack");
+                double bg = findAvgBackground(imgCrop);
+                intBgFound.add(new RoiBg(roi, bg));
+                flush_close(imgCrop);
+            }
+        }
+        img.deleteRoi();
+        // sort RoiBg on bg value
+        intBgFound.sort(Comparator.comparing(RoiBg::getBgInt));
+        // Find lower value
+        RoiBg roiBg = intBgFound.get(0);
+        
+        int roiCenterX = (int)(roiBg.getRoi().getBounds().x+(roiBgSize/2));
+        int roiCenterY = (int)(roiBg.getRoi().getBounds().y+(roiBgSize/2));
+        System.out.println("Roi auto background found = "+roiBg.getBgInt()+" center x = "+roiCenterX+", y = "+roiCenterY);
+        return(roiBg);
+    }
+    
     
      /**
      * Clear out side roi
@@ -401,7 +454,7 @@ public class Tools {
         pop.resetLabels();
     }
     
-     /**
+    /**
      * Find sum volume of objects  
      * @param dotsPop
      * @return vol
@@ -409,9 +462,11 @@ public class Tools {
     
     public double findPopVolume (Objects3DIntPopulation dotsPop) {
         IJ.showStatus("Findind object's volume");
-        List<Double[]> results = dotsPop.getMeasurementsList(new MeasureVolume().getNamesMeasurement());
-        double sum = results.stream().map(arr -> arr[1]).reduce(0.0, Double::sum);
-        return(sum);
+        double sumVol = 0;
+        for(Object3DInt obj : dotsPop.getObjects3DInt()) {
+            sumVol += new MeasureVolume(obj).getVolumeUnit();
+        }
+        return(sumVol);
     }
     
      /**
