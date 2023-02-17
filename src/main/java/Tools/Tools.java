@@ -308,21 +308,7 @@ public class Tools {
       return(bg);
     }
     
-    /**
-     * Find background image intensity:
-     * Z projection over average intensity
-     * return average of intensity
-     * @param img
-     * @return 
-     */
-    public double findAvgBackground(ImagePlus img) {
-      ImagePlus imgProj = doZProjection(img, ZProjector.AVG_METHOD);
-      ImageProcessor imp = imgProj.getProcessor();
-      double bg = imp.getStatistics().mean;
-      System.out.println("Background (mean of the average projection) = " + bg);
-      flush_close(imgProj);
-      return(bg);
-    }
+    
     
     /**
      * Auto find background from scroolling roi
@@ -340,7 +326,7 @@ public class Tools {
                 Roi roi = new Roi(x, y, roiBgSize, roiBgSize);
                 img.setRoi(roi);
                 ImagePlus imgCrop = img.crop("stack");
-                double bg = findAvgBackground(imgCrop);
+                double bg = findMedianBackground(imgCrop);
                 intBgFound.add(new RoiBg(roi, bg));
                 flush_close(imgCrop);
             }
