@@ -11,6 +11,7 @@ import ij.measure.Calibration;
 import ij.plugin.Duplicator;
 import ij.plugin.ZProjector;
 import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 import ij.util.ThreadUtil;
 import java.awt.Font;
 import java.io.File;
@@ -31,6 +32,7 @@ import mcib3d.geom.Objects3DPopulation;
 import mcib3d.geom2.BoundingBox;
 import mcib3d.geom2.Object3DComputation;
 import mcib3d.geom2.Object3DInt;
+import mcib3d.geom2.Object3DIntLabelImage;
 import mcib3d.geom2.Object3DPlane;
 import mcib3d.geom2.Objects3DIntPopulation;
 import mcib3d.geom2.VoxelInt;
@@ -42,11 +44,14 @@ import mcib3d.geom2.measurementsPopulation.PairObjects3DInt;
 import mcib3d.image3d.ImageFloat;
 import mcib3d.image3d.ImageHandler;
 import mcib3d.image3d.distanceMap3d.EDT;
+import mcib3d.image3d.processing.BinaryMorpho;
 import mcib3d.spatial.analysis.SpatialStatistics;
 import mcib3d.spatial.descriptors.F_Function;
 import mcib3d.spatial.descriptors.SpatialDescriptor;
 import mcib3d.spatial.sampler.SpatialModel;
 import mcib3d.spatial.sampler.SpatialRandomHardCore;
+import net.haesleinhuepf.clij.clearcl.ClearCLBuffer;
+import net.haesleinhuepf.clij2.CLIJ2;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.util.ArrayUtils;
 
@@ -55,7 +60,7 @@ import org.scijava.util.ArrayUtils;
  * @author Orion-CIRB
  */
 public class Tools {
-
+    
     private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
     public Calibration cal;
     
@@ -64,6 +69,10 @@ public class Tools {
     
     // Cellpose
     private final String cellposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/cellpose" : System.getProperty("user.home")+"\\miniconda3\\envs\\CellPose";
+    private final String cellposeModelDirPath = (IJ.isLinux()) ? System.getProperty("user.home")+"/.cellpose/models/" : "";
+    
+    private final CLIJ2 clij2 = CLIJ2.getInstance();
+        
     
     
     /**
@@ -83,6 +92,162 @@ public class Tools {
         return true;
     }
     
+     /**
+     * Check that required StarDist models are present in Fiji models folder
+     */
+    public boolean checkStarDistModels(String stardistModel) {
+        FilenameFilter filter = (dir, name) -> name.endsWith(".zip");
+        File[] modelList = stardistModelsPath.listFiles(filter);
+        int index = ArrayUtils.indexOf(modelList, new File(stardistModelsPath+File.separator+stardistModel));
+        if (index == -1) {
+            IJ.showMessage("Error", stardistModel + " StarDist model not found, please add it in Fiji models folder");
+            return false;
+        }
+        return true;
+    }
+    
+    /**
+     * Find stardist models in Fiji models folder
+     * 
+    */
+    public String[] findStardistModels() {
+        FilenameFilter filter = (dir, name) -> name.endsWith(".zip");
+        File[] modelList = stardistModelsPath.listFiles(filter);
+        String[] modelFiles = new String[modelList.length];
+        for (int i = 0; i < modelList.length; i++)
+            modelFiles[i] = modelList[i].getName();
+        return modelFiles;
+    }
+
+    
+    
+    /**
+     ******
+     ******
+     * Clij filters
+     ******
+     ****** 
+     */
+    
+    
+    /**
+     * Test if GPU
+     * @return 
+     */
+    public boolean isGPU() {
+        String gpuName = clij2.getGPUName();
+        return(gpuName.isEmpty());
+    }
+    
+    /**
+     * Median filter using CLIJ2
+     * @param img
+     * @param sizeXY
+     * @param sizeZ
+     * @return 
+     */ 
+    public ImagePlus median_filter(ImagePlus img, double sizeXY, double sizeZ) {
+       ClearCLBuffer imgCL = clij2.push(img); 
+       ClearCLBuffer imgCLMed = clij2.create(imgCL);
+       clij2.median3DBox(imgCL, imgCLMed, sizeXY, sizeXY, sizeZ);
+       clij2.release(imgCL);
+       ImagePlus imgMed = clij2.pull(imgCLMed);
+        clij2.release(imgCLMed);
+       return(imgMed);
+    } 
+    
+    
+     /**
+     * Difference of Gaussians 
+     * Using CLIJ2
+     * @param img
+     * @param size1
+     * @param size2
+     * @return imgGauss
+     */ 
+    public ImagePlus DOG(ImagePlus img, double size1, double size2) {
+        ClearCLBuffer imgCL = clij2.push(img);
+        ClearCLBuffer imgCLDOG = clij2.create(imgCL);
+        clij2.differenceOfGaussian3D(imgCL, imgCLDOG, size1, size1, size1, size2, size2, size2);
+        clij2.release(imgCL);
+        ImagePlus imgDOG = clij2.pull(imgCLDOG);
+        clij2.release(imgCLDOG);
+        return(imgDOG);
+    }
+    
+    /**
+     * Threshold 
+     * USING CLIJ2
+     * @param img
+     * @param thMed
+     * @return 
+     */
+    public ImagePlus threshold(ImagePlus img, String thMed) {
+        ClearCLBuffer imgCL = clij2.push(img);
+        ClearCLBuffer imgCLBin = clij2.create(imgCL);
+        clij2.automaticThreshold(imgCL, imgCLBin, thMed);
+        clij2.release(imgCL);
+        ImagePlus imgBin = clij2.pull(imgCLBin);
+        clij2.release(imgCLBin);
+        return(imgBin);
+    }
+    
+     /**
+     * Laplace of Gaussian filter using CLIJ2
+     * @param img
+     * @param sizeXYZ
+     * @return 
+     */ 
+    public ImagePlus  LOG_filter(ImagePlus img, double sizeXYZ) {
+       ClearCLBuffer imgCL = clij2.push(img);
+       ClearCLBuffer imgCLDOG = clij2.create(imgCL);
+       clij2.gaussianBlur3D(imgCL, imgCLDOG, sizeXYZ, sizeXYZ, sizeXYZ);
+       clij2.release(imgCL);
+       ClearCLBuffer imgCLLOG = clij2.create(imgCL);
+       clij2.laplaceSphere(imgCLDOG, imgCLLOG);
+       clij2.release(imgCLDOG);
+       ImagePlus imgLOG = clij2.pull(imgCLLOG);
+       clij2.release(imgCLLOG);
+       return(imgLOG);
+    }  
+    
+    /**
+     * Max filter using CLIJ2
+     * @param img
+     * @param sizeXY
+     * @param sizeZ
+     * @return 
+     */ 
+    public ImagePlus max_filter(ImagePlus img, double sizeXY, double sizeZ) {
+       ClearCLBuffer imgCL = clij2.push(img);
+       ClearCLBuffer imgCLMax = clij2.create(imgCL);
+       clij2.maximum3DBox(imgCL, imgCLMax, sizeXY, sizeXY, sizeZ);
+       clij2.release(imgCL);
+       return(clij2.pull(imgCLMax));
+    } 
+    
+    /**
+     * Min filter using CLIJ2
+     * @param img
+     * @param sizeXY
+     * @param sizeZ
+     * @return 
+     */ 
+    public ImagePlus min_filter(ImagePlus img, double sizeXY, double sizeZ) {
+       ClearCLBuffer imgCL = clij2.push(img);
+       ClearCLBuffer imgCLMin = clij2.create(imgCL);
+       clij2.minimum3DBox(imgCL, imgCLMin, sizeXY, sizeXY, sizeZ);
+       clij2.release(imgCL);
+       return(clij2.pull(imgCLMin));
+    } 
+    
+    /**
+     ******
+     ******
+     * file tools
+     ******
+     ****** 
+     */
     
     /**
      * Flush and close an image
@@ -136,36 +301,6 @@ public class Tools {
         }
         return(ext);
     }
-     
-    /**
-     * Check that required StarDist models are present in Fiji models folder
-     * @param stardistModel
-     * @return 
-     */
-    public boolean checkStarDistModels(String stardistModel) {
-        FilenameFilter filter = (dir, name) -> name.endsWith(".zip");
-        File[] modelList = stardistModelsPath.listFiles(filter);
-        int index = ArrayUtils.indexOf(modelList, new File(stardistModelsPath+File.separator+stardistModel));
-        if (index == -1) {
-            IJ.showMessage("Error", stardistModel + " StarDist model not found, please add it in Fiji models folder");
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Find stardist models in Fiji models folder
-     * 
-    */
-    public String[] findStardistModels() {
-        FilenameFilter filter = (dir, name) -> name.endsWith(".zip");
-        File[] modelList = stardistModelsPath.listFiles(filter);
-        String[] modelFiles = new String[modelList.length];
-        for (int i = 0; i < modelList.length; i++)
-            modelFiles[i] = modelList[i].getName();
-        return modelFiles;
-    }
-
     
     /**
      * Find images in folder
@@ -274,40 +409,43 @@ public class Tools {
     }
     
     
-     /**
-     * Find background image intensity:
-     * Z projection over min intensity
-     * return Mean + std of intensity
+    /**
+     * Find background image intensity
+     * with/without roi
+     * Z projection over min intensity + read stats (median/mean) intensity
      * @param img
-     * @return 
      */
-    public double findMeanStdBackground(ImagePlus img) {
-      double bg = 0;
+    public double findMedianBackground(ImagePlus img, Roi roi) {
       ImagePlus imgProj = doZProjection(img, ZProjector.MIN_METHOD);
       ImageProcessor imp = imgProj.getProcessor();
-      bg = imp.getStatistics().mean;
-      bg += imp.getStatistics().stdDev;
-      System.out.println("Background (mean + std of the min projection) = " + bg);
+      if (roi != null) {
+          roi.setLocation(0, 0);
+          imp.setRoi(roi);
+      }
+      double bg = imp.getStatistics().median;
+      System.out.println("Background = " + bg);
       flush_close(imgProj);
       return(bg);
     }
     
     /**
-     * Find background image intensity:
-     * Z projection over min intensity
-     * return median of intensity
+     * Find background image intensity
+     * with/without roi
+     * Z projection over min intensity + read stats (median/mean) intensity
      * @param img
-     * @return 
      */
-    public double findMedianBackground(ImagePlus img) {
+    public double findStdDevBackground(ImagePlus img, Roi roi) {
       ImagePlus imgProj = doZProjection(img, ZProjector.MIN_METHOD);
       ImageProcessor imp = imgProj.getProcessor();
-      double bg = imp.getStatistics().mean;
-      System.out.println("Background (median of the min projection) = " + bg);
+      if (roi != null) {
+          roi.setLocation(0, 0);
+          imp.setRoi(roi);
+      }
+      double bg = imp.getStatistics().stdDev;
+      System.out.println("Background = " + bg);
       flush_close(imgProj);
       return(bg);
     }
-    
     
     
     /**
@@ -324,11 +462,8 @@ public class Tools {
         for (int x = 0; x < img.getWidth() - roiBgSize; x += roiBgSize) {
             for (int y = 0; y < img.getHeight() - roiBgSize; y += roiBgSize) {
                 Roi roi = new Roi(x, y, roiBgSize, roiBgSize);
-                img.setRoi(roi);
-                ImagePlus imgCrop = img.crop("stack");
-                double bg = findMedianBackground(imgCrop);
+                double bg = findMedianBackground(img, roi);
                 intBgFound.add(new RoiBg(roi, bg));
-                flush_close(imgCrop);
             }
         }
         img.deleteRoi();
@@ -362,6 +497,27 @@ public class Tools {
         img.updateAndDraw();
     }
    
+     /**
+     * Label object
+     * @param obj
+     * @param img 
+     * @param fontSize 
+     */
+    public void labelObjectCenter(Object3DInt obj, ImagePlus img, int fontSize) {
+        if (IJ.isMacOSX())
+            fontSize *= 3;
+        
+        BoundingBox bb = obj.getBoundingBox();
+        int z = (int)(bb.zmin + 0.5*(bb.zmax - bb.zmin));
+        int x = (int)(bb.xmin + 0.5*(bb.xmax - bb.xmin));
+        int y = (int)(bb.ymin + 0.5*(bb.ymax - bb.ymin));
+        img.setSlice(z); //z+1
+        ImageProcessor ip = img.getProcessor();
+        ip.setFont(new Font("SansSerif", Font.PLAIN, fontSize));
+        ip.setColor(255);
+        ip.drawString(Integer.toString((int)obj.getLabel()), x, y);
+        img.updateAndDraw();
+    }
     
      /**
      * Label object
@@ -369,7 +525,7 @@ public class Tools {
      * @param img 
      * @param fontSize 
      */
-    public void labelObject(Object3DInt obj, ImagePlus img, int fontSize) {
+    public void labelObjectLeftTop(Object3DInt obj, ImagePlus img, int fontSize) {
         if (IJ.isMacOSX())
             fontSize *= 3;
         
@@ -551,25 +707,58 @@ public class Tools {
         }
         return(colocPop);
     }
+
+     /**
+     * Morphological operators with clij
+     * @param obj
+     * @param op
+     * @param rad (pixels)
+     * @return return null object if touch border
+     */
+    
+    private Object3DInt getMorphologicalObject3D(Object3DInt obj, ImagePlus img, int op, int rad) {
+        int ext = (op == BinaryMorpho.MORPHO_DILATE) ? rad + 1 : 1;
+        ImageHandler labelImage = new Object3DIntLabelImage(obj).getCroppedLabelImage(ext, ext, 0, 1, false);
+        ImagePlus imgCrop = labelImage.getImagePlus();
+        ImagePlus imgSeg = null;
+        switch (op) {
+            case BinaryMorpho.MORPHO_DILATE :
+                imgSeg = max_filter(imgCrop, rad, 0);
+                break;
+            case BinaryMorpho.MORPHO_ERODE :
+                imgSeg = min_filter(imgCrop, rad, 0);
+                break;
+        }
+            
+        ImageHandler segImage2 = ImageHandler.wrap(imgSeg);
+        segImage2.setOffset(labelImage);
+        segImage2.setCalibration(cal);
+        Object3DInt objMorpho = new Object3DInt(segImage2);
+        if ((op == BinaryMorpho.MORPHO_DILATE) && (new Object3DComputation(objMorpho).touchBorders(ImageHandler.wrap(img), false)))
+            objMorpho = null;
+        else
+            objMorpho.setLabel(obj.getLabel());
+        return objMorpho;
+    }
+
+
     
     /**
-     * Return dilated object restriced to image borders
+     * Return object restriced to image borders
      * @param img
      * @param obj
      * @param dilSize
      * @return 
      */
-    public Object3DInt dilateObj(ImagePlus img, Object3DInt obj, double dilSize) {
-        Object3DInt objDil = new Object3DComputation(obj).getObjectDilated((float)(dilSize/cal.pixelWidth), (float)(dilSize/cal.pixelHeight), 
-                (float)(dilSize/cal.pixelDepth));
+    public Object3DInt restrictedImgObj(ImagePlus img, Object3DInt obj) {
         // check if object go outside image
-        BoundingBox bbox = objDil.getBoundingBox();
+        BoundingBox bbox = obj.getBoundingBox();
         BoundingBox imgBbox = new BoundingBox(ImageHandler.wrap(img));
         int[] box = {imgBbox.xmin, imgBbox.xmax, imgBbox.ymin, imgBbox.ymax, imgBbox.zmin, imgBbox.zmax};
         if (bbox.xmin < 0 || bbox.xmax > imgBbox.xmax || bbox.ymin < 0 || bbox.ymax > imgBbox.ymax
                 || bbox.zmin < 0 || bbox.zmax > imgBbox.zmax) {
             Object3DInt objDilImg = new Object3DInt();
-            for (Object3DPlane p : objDil.getObject3DPlanes()) {
+            for (Object3DPlane p : obj.getObject3DPlanes()) {
                 for (VoxelInt v : p.getVoxels()) {
                     if (v.isInsideBoundingBox(box))
                         objDilImg.addVoxel(v);
@@ -578,7 +767,7 @@ public class Tools {
             return(objDilImg);
         }
         else
-            return(objDil);
+            return(obj);
     }
     
     /**
