@@ -1,6 +1,6 @@
 package Tools;
 
-import Stardist.StarDist2D;
+import Tools.StardistOrion.StarDist2D;
 import Cellpose.CellposeTaskSettings;
 import Cellpose.CellposeSegmentImgPlusAdvanced;
 import ij.IJ;
