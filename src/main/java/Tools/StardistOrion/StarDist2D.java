@@ -1,4 +1,4 @@
-package Stardist;
+package Tools.StardistOrion;
 
 
 import java.io.File;
@@ -288,7 +288,7 @@ public class StarDist2D extends StarDist2DBase implements Command {
         IJ.run(labImg, "Select None", ""); 
         for (int i=1; i<labImg.getNSlices(); i++) {
              ImagePlus inext = labImg.crop((i+1)+"-"+(i+1));
-             associated[i] = associate(inext, associated[i-1], max);
+             associated[i] = associate(inext, associated[i-1]);
              inext.flush();
              inext.close();
         }
@@ -302,7 +302,7 @@ public class StarDist2D extends StarDist2DBase implements Command {
     }
     
     /** Associate the label of frame t-1 with slice z */
-    public ImagePlus associate(ImagePlus ip, ImagePlus ref, float max) {
+    public ImagePlus associate(ImagePlus ip, ImagePlus ref) {
         
         ImageHandler img1 = ImageInt.wrap(ref);
         ImageHandler img2 = ImageInt.wrap(ip);
