@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import static jdk.nashorn.internal.objects.NativeRegExp.source;
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
@@ -52,6 +53,8 @@ import mcib3d.spatial.sampler.SpatialModel;
 import mcib3d.spatial.sampler.SpatialRandomHardCore;
 import net.haesleinhuepf.clij.clearcl.ClearCLBuffer;
 import net.haesleinhuepf.clij2.CLIJ2;
+import net.haesleinhuepf.clijx.imagej2.ImageJ2Tubeness;
+import net.haesleinhuepf.clijx.plugins.Skeletonize;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.util.ArrayUtils;
 
@@ -72,7 +75,6 @@ public class Tools {
     private final String cellposeModelDirPath = (IJ.isLinux()) ? System.getProperty("user.home")+"/.cellpose/models/" : "";
     
     private final CLIJ2 clij2 = CLIJ2.getInstance();
-        
     
     
     /**
@@ -154,6 +156,23 @@ public class Tools {
        ImagePlus imgMed = clij2.pull(imgCLMed);
         clij2.release(imgCLMed);
        return(imgMed);
+    } 
+
+    /**
+     * Guassian filter using CLIJ2
+     * @param img
+     * @param sizeXY
+     * @param sizeZ
+     * @return 
+     */ 
+    public ImagePlus gaussian_filter(ImagePlus img, double sizeXY, double sizeZ) {
+       ClearCLBuffer imgCL = clij2.push(img); 
+       ClearCLBuffer imgCLGauss = clij2.create(imgCL);
+       clij2.gaussianBlur3D(imgCL, imgCLGauss, sizeXY, sizeXY, sizeZ);
+       clij2.release(imgCL);
+       ImagePlus imgGauss = clij2.pull(imgCLGauss);
+        clij2.release(imgCLGauss);
+       return(imgGauss);
     } 
     
     
@@ -240,6 +259,34 @@ public class Tools {
        clij2.release(imgCL);
        return(clij2.pull(imgCLMin));
     } 
+
+    /**
+     * Clij2 Tubeness
+     */
+    private ImagePlus clij_Tubeness(ImagePlus img, float sigma) {
+        ClearCLBuffer imgCL = clij2.push(img);
+        ClearCLBuffer imgCLTube = clij2.create(imgCL);
+        ImageJ2Tubeness ij2Tubeness = new ImageJ2Tubeness();
+        ij2Tubeness.imageJ2Tubeness(clij2, imgCL, imgCLTube, sigma, 0f, 0f, 0f);
+        ImagePlus imgTube = clij2.pull(imgCLTube);
+        clij2.release(imgCL);
+        clij2.release(imgCLTube);
+        return(imgTube);
+    }
+    
+    /**
+     * Clij2 skeletonize 2D
+     */
+    private ImagePlus clij_Skeletonize(ImagePlus img) {
+        ClearCLBuffer imgCL = clij2.push(img);
+        ClearCLBuffer imgCLSkel = clij2.create(imgCL);
+        Skeletonize.skeletonize(clij2, imgCL, imgCLSkel);
+        clij2.release(imgCL);
+        ImagePlus imgSkel = clij2.pull(imgCLSkel);
+        clij2.release(imgCLSkel);
+        return(imgSkel);
+    }
+    
     
     /**
      ******
@@ -343,8 +390,7 @@ public class Tools {
         return(cal);
     }
     
-    
-     /**
+    /**
      * Find channels name
      * @throws loci.common.services.DependencyException
      * @throws loci.common.services.ServiceException
@@ -377,11 +423,11 @@ public class Tools {
                 break;
             case "ics" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = (meta.getChannelID(0, n) == null) ? channels[n] = Integer.toString(n) : meta.getChannelExcitationWavelength(0, n).value().toString();
+                    channels[n] = meta.getChannelEmissionWavelength(0, n).value().toString();
                 break;    
             case "ics2" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = (meta.getChannelID(0, n) == null) ? channels[n] = Integer.toString(n) : meta.getChannelExcitationWavelength(0, n).value().toString();
+                    channels[n] = meta.getChannelEmissionWavelength(0, n).value().toString();
                 break; 
             default :
                 for (int n = 0; n < chs; n++)
