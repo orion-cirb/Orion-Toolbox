@@ -1,4 +1,4 @@
-package Tools;
+package Orion_Tools;
        
 import ij.IJ;
 import ij.gui.Plot;
@@ -227,7 +227,16 @@ public class SpatialStatistics {
         }
         return plot;
     }
-
+    
+    public double getAreaCurve() {
+        double sum = 0.0;
+        for(int i = 0; i < obsDesc.size() - 1; i++){
+            sum += (obsDesc.getValue(i + 1) - obsDesc.getValue(i)) * obsCD.getValue(i);
+            sum += (obsDesc.getValue(i + 1)- obsDesc.getValue(i)) * (obsCD.getValue(i + 1) - obsCD.getValue(i)) / 2.0;
+        }
+        return sum;
+    }
+    
     public void setVerbose(boolean verbose) {
         this.verbose = verbose;
     }

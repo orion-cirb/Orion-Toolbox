@@ -1,4 +1,4 @@
-package Cellpose;
+package Orion_Tools.Cellpose;
 
 import ij.IJ;
 import ij.ImagePlus;

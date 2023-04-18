@@ -1,4 +1,4 @@
-package Tools.StardistOrion;
+package Orion_Tools.StardistOrion;
 
 import java.util.ArrayList;
 import java.util.Arrays;

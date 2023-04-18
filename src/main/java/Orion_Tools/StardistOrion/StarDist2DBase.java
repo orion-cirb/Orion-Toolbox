@@ -1,4 +1,4 @@
-package Tools.StardistOrion;
+package Orion_Tools.StardistOrion;
 
 import java.net.URL;
 import java.util.List;
