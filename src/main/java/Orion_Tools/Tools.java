@@ -3,6 +3,7 @@ package Orion_Tools;
 import Orion_Tools.StardistOrion.StarDist2D;
 import Orion_Tools.Cellpose.CellposeTaskSettings;
 import Orion_Tools.Cellpose.CellposeSegmentImgPlusAdvanced;
+import features.TubenessProcessor;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -13,6 +14,7 @@ import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.plugin.Duplicator;
 import ij.plugin.ZProjector;
+import ij.plugin.filter.BackgroundSubtracter;
 import ij.process.ImageProcessor;
 import java.awt.Font;
 import java.io.File;
@@ -23,10 +25,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.DoubleAccumulator;
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
 import loci.formats.meta.IMetadata;
+import loci.plugins.BF;
+import loci.plugins.in.ImporterOptions;
 import loci.plugins.util.ImageProcessorReader;
 import mcib3d.geom.Object3D;
 import mcib3d.geom.Objects3DPopulation;
@@ -49,6 +55,7 @@ import mcib3d.spatial.descriptors.F_Function;
 import mcib3d.spatial.descriptors.SpatialDescriptor;
 import mcib3d.spatial.sampler.SpatialModel;
 import mcib3d.spatial.sampler.SpatialRandomHardCore;
+import mcib3d.utils.ThreadUtil;
 import net.haesleinhuepf.clij.clearcl.ClearCLBuffer;
 import net.haesleinhuepf.clij2.CLIJ2;
 import net.haesleinhuepf.clijx.imagej2.ImageJ2Tubeness;
@@ -69,8 +76,8 @@ public class Tools {
     private final String omniposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/omnipose" : System.getProperty("user.home")+"\\miniconda3\\envs\\OmniPose";
     
     // Cellpose
-    private final String cellposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/cellpose" : System.getProperty("user.home")+"\\miniconda3\\envs\\CellPose";
-    private final String cellposeModelDirPath = (IJ.isLinux()) ? System.getProperty("user.home")+"/.cellpose/models/" : "";
+    public final String cellposeEnvDir = IJ.isWindows()? System.getProperty("user.home")+File.separator+"miniconda3"+File.separator+"envs"+File.separator+"CellPose" : "/opt/miniconda3/envs/cellpose";
+    private final String cellposeModelsPath = (IJ.isWindows()) ? System.getProperty("user.home")+"\\.cellpose\\models\\" : System.getProperty("user.home")+"/.cellpose/models/"; 
     
     public Calibration cal;
     private final CLIJ2 clij2 = CLIJ2.getInstance();
@@ -320,17 +327,62 @@ public class Tools {
     }
 
     /**
-     * Clij2 Tubeness
+     * tubeness plane by plane multithreads
      */
     public ImagePlus tubeness(ImagePlus img, float sigma) {
-        ClearCLBuffer imgCL = clij2.push(img);
-        ClearCLBuffer imgCLTube = clij2.create(imgCL);
-        ImageJ2Tubeness ij2Tubeness = new ImageJ2Tubeness();
-        ij2Tubeness.imageJ2Tubeness(clij2, imgCL, imgCLTube, sigma, 0f, 0f, 0f);
-        ImagePlus imgTube = clij2.pull(imgCLTube);
-        clij2.release(imgCL);
-        clij2.release(imgCLTube);
-        return(imgTube);
+        ImagePlus[] stack = new ImagePlus[img.getNSlices()];
+        final AtomicInteger ai = new AtomicInteger(0);
+        final int n_cpus = ThreadUtil.getNbCpus();
+        Thread[] threads = ThreadUtil.createThreadArray(n_cpus);
+        int nbZ = img.getNSlices();
+        final int dec = (int) Math.ceil((double) nbZ / (double) n_cpus);
+        
+        for (int ithread = 0; ithread < threads.length; ithread++) {
+            threads[ithread] = new Thread() {
+                @Override
+                public void run() {
+                    for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) {
+                        for (int z = dec * k; ((z < (dec * (k + 1))) && (z < nbZ)); z++) {
+                            ImagePlus slice = new Duplicator().run(img, z+1, z+1);
+                            stack[z] = new TubenessProcessor(sigma, true).generateImage(slice);
+                        }
+                    }
+                }
+            };
+        }
+        ThreadUtil.startAndJoin(threads);
+        ImageStack imgS = new ImageStack(img.getWidth(), img.getHeight());
+        for (int i = 0; i < nbZ; i++)
+           imgS.addSlice(stack[i].getProcessor());
+        return(new ImagePlus("", imgS));
+    }
+
+    /**
+     * subtract background plane by plane multithreads
+     */
+    public ImagePlus subtractBackground(ImagePlus img, float radius) {
+        final AtomicInteger ai = new AtomicInteger(0);
+        final int n_cpus = ThreadUtil.getNbCpus();
+        Thread[] threads = ThreadUtil.createThreadArray(n_cpus);
+        int nbZ = img.getNSlices();
+        final int dec = (int) Math.ceil((double) nbZ / (double) n_cpus);
+        ImagePlus imgBG = img.duplicate();
+        for (int ithread = 0; ithread < threads.length; ithread++) {
+            threads[ithread] = new Thread() {
+                @Override
+                public void run() {
+                    for (int k = ai.getAndIncrement(); k < n_cpus; k = ai.getAndIncrement()) {
+                        for (int z = dec * k; ((z < (dec * (k + 1))) && (z < nbZ)); z++) {
+                            imgBG.setZ(z+1);
+                            ImageProcessor ip = imgBG.getProcessor();
+                            new BackgroundSubtracter().rollingBallBackground​(ip, radius, false, false, false, false, false);
+                        }
+                    }
+                }
+            };
+        }
+        ThreadUtil.startAndJoin(threads);
+        return(imgBG);
     }
     
     /**
@@ -421,6 +473,9 @@ public class Tools {
                     case "lif"  :
                         ext = fileExt;
                         break;
+                    case "ics" :
+                        ext = fileExt;
+                        break;
                     case "ics2" :
                         ext = fileExt;
                         break;
@@ -431,7 +486,7 @@ public class Tools {
                         ext = fileExt;
                         break;
                 }
-            } else if (file.isDirectory() && !file.getName().equals("Results")) {
+            } else if (file.isDirectory() && !file.getName().contains("Results")) {
                 ext = findImageType(file);
                 if (! ext.equals(""))
                     break;
@@ -470,10 +525,10 @@ public class Tools {
      * @return 
      */
     public Calibration findImageCalib(IMetadata meta) {
-        cal.pixelWidth = meta.getPixelsPhysicalSizeX(0).value().doubleValue();
+        cal.pixelWidth = meta.getPixelsPhysicalSizeX(0).getValue();
         cal.pixelHeight = cal.pixelWidth;
         if (meta.getPixelsPhysicalSizeZ(0) != null)
-            cal.pixelDepth = meta.getPixelsPhysicalSizeZ(0).value().doubleValue();
+            cal.pixelDepth = meta.getPixelsPhysicalSizeZ(0).getValue();
         else
             cal.pixelDepth = 1;
         cal.setUnit("microns");
@@ -499,30 +554,30 @@ public class Tools {
         switch (imageExt) {
             case "nd" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = (meta.getChannelName(0, n).toString().equals("")) ? Integer.toString(n) : meta.getChannelName(0, n).toString();
+                    channels[n] = (meta.getChannelName(0, n).equals("")) ? Integer.toString(n) : meta.getChannelName(0, n);
                 break;
             case "nd2" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = (meta.getChannelName(0, n).toString().equals("")) ? Integer.toString(n) : meta.getChannelName(0, n).toString();
+                    channels[n] = (meta.getChannelName(0, n).equals("")) ? Integer.toString(n) : meta.getChannelName(0, n);
                 break;
             case "lif" :
                 for (int n = 0; n < chs; n++) 
                     if (meta.getChannelID(0, n) == null || meta.getChannelName(0, n) == null)
                         channels[n] = Integer.toString(n);
                     else 
-                        channels[n] = meta.getChannelName(0, n).toString();
+                        channels[n] = meta.getChannelName(0, n);
                 break;
             case "czi" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = (meta.getChannelFluor(0, n).toString().equals("")) ? Integer.toString(n) : meta.getChannelFluor(0, n).toString();
+                    channels[n] = (meta.getChannelFluor(0, n).equals("")) ? Integer.toString(n) : meta.getChannelFluor(0, n);
                 break;
             case "ics" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = meta.getChannelEmissionWavelength(0, n).value().toString();
+                    channels[n] = meta.getChannelEmissionWavelength(0, n).toString();
                 break;    
             case "ics2" :
                 for (int n = 0; n < chs; n++) 
-                    channels[n] = meta.getChannelEmissionWavelength(0, n).value().toString();
+                    channels[n] = meta.getChannelEmissionWavelength(0, n).toString();
                 break; 
             default :
                 for (int n = 0; n < chs; n++)
@@ -695,6 +750,9 @@ public class Tools {
      /**
      * Compute distance map or inverse distance map
      * with clij2
+     * @param img
+     * @param inverse
+     * @return 
      */
     public ImagePlus localThickness3D(ImagePlus img, boolean inverse) {
         IJ.showStatus("Computing distance map...");
@@ -732,13 +790,15 @@ public class Tools {
     }
     
     
-    /**
+      /**
      * Remove object with size < min and size > max
      * @param pop
      * @param min
      * @param max
      */
     public void popFilterSize(Objects3DIntPopulation pop, double min, double max) {
+        pop.setVoxelSizeXY(cal.pixelWidth);
+        pop.setVoxelSizeZ(cal.pixelDepth);
         pop.getObjects3DInt().removeIf(p -> (new MeasureVolume(p).getVolumeUnit() < min) || (new MeasureVolume(p).getVolumeUnit() > max));
         pop.resetLabels();
     }
@@ -756,18 +816,14 @@ public class Tools {
     }
     
     /**
-     * Find sum volume of objects  
-     * @param dotsPop
-     * @return vol
+     * Find sum vessel volume
      */
-    
-    public double findPopVolume (Objects3DIntPopulation dotsPop) {
-        IJ.showStatus("Findind object's volume");
-        double sumVol = 0;
-        for(Object3DInt obj : dotsPop.getObjects3DInt()) {
-            sumVol += new MeasureVolume(obj).getVolumeUnit();
-        }
-        return(sumVol);
+    private double findPopVolume(Objects3DIntPopulation pop) {
+        DoubleAccumulator sumVol = new DoubleAccumulator(Double::sum,0.d);
+        pop.getObjects3DInt().parallelStream().forEach(obj -> { 
+            sumVol.accumulate(new MeasureVolume(obj).getVolumeUnit());
+        });
+        return(sumVol.doubleValue());
     }
     
      /**
@@ -776,21 +832,18 @@ public class Tools {
      * @param img
      * @return intensity
      */
-    
-    public double findPopIntensity (Objects3DIntPopulation dotsPop, ImagePlus img) {
-        IJ.showStatus("Findind object's intensity");
+    private double findPopIntensity(Objects3DIntPopulation pop, ImagePlus img) {
         ImageHandler imh = ImageHandler.wrap(img);
-        double sumInt = 0;
-        for(Object3DInt obj : dotsPop.getObjects3DInt()) {
-            MeasureIntensity intMes = new MeasureIntensity(obj, imh);
-            sumInt +=  intMes.getValueMeasurement(MeasureIntensity.INTENSITY_SUM);
-        }
-        return(sumInt);
+        DoubleAccumulator sumInt = new DoubleAccumulator(Double::sum,0.d);
+        pop.getObjects3DInt().parallelStream().forEach(obj -> { 
+            sumInt.accumulate(new MeasureIntensity(obj, imh).getValueMeasurement(MeasureIntensity.INTENSITY_SUM));
+        });
+        return(sumInt.doubleValue());
     }
     
     /**
      * Find objects in pop colocalized with obj
-     * %coloc of object in pop > pourc
+     * %coloc of object in pop object > pourc
      * @param obj
      * @param pop
      * @param pourc
@@ -799,15 +852,14 @@ public class Tools {
     public Objects3DIntPopulation findColocObjects(Object3DInt obj, Objects3DIntPopulation pop, double pourc) {
         Objects3DIntPopulation colocPop = new Objects3DIntPopulation();
         if (pop.getNbObjects() > 0) {
-            for (Object3DInt objPop: pop.getObjects3DInt()) {
-                double objVol = new MeasureVolume(objPop).getVolumePix();
-                double colocPour = new Measure2Colocalisation(objPop, obj).getValue(Measure2Colocalisation.COLOC_VOLUME) / objVol;
-                if (colocPour >= pourc) {
-                    colocPop.addObject(objPop);
-                }
-            }
-        }
+            pop.getObjects3DInt().parallelStream().filter(obj2 -> {
+                double colocPour = new Measure2Colocalisation(obj, obj2).getValue(Measure2Colocalisation.COLOC_PC);
+                return(colocPour >= pourc);
+            }).forEach(colocPop::addObject);
         colocPop.resetLabels();
+        colocPop.setVoxelSizeXY(cal.pixelWidth);
+        colocPop.setVoxelSizeZ(cal.pixelDepth);
+    }
         return(colocPop);
     }
     
@@ -823,7 +875,7 @@ public class Tools {
         Objects3DIntPopulation colocPop = new Objects3DIntPopulation();
         if (pop1.getNbObjects() > 0 && pop2.getNbObjects() > 0) {
             MeasurePopulationColocalisation coloc = new MeasurePopulationColocalisation(pop1, pop2);
-            pop1.getObjects3DInt().forEach(obj1 -> {
+            pop1.getObjects3DInt().stream().forEach(obj1 -> {
                 List<PairObjects3DInt> list = coloc.getPairsObject1(obj1.getLabel(), true);
                 if (!list.isEmpty()) {
                     list.forEach(p -> {
@@ -842,7 +894,8 @@ public class Tools {
    
     
     /** Dilate objects
-     * Return croped object to image borders or remove object touching border
+     * Return croped object to image borders or remove object touching border 
+     * A revoir !!!!!
      * @param img
      * @param pop
      * @param dilSize
@@ -870,6 +923,7 @@ public class Tools {
         }
         return(objDil);
     }
+    
     
     /**
      * Apply StarDist 2D slice by slice
@@ -939,9 +993,9 @@ public class Tools {
         int imgHeight = img.getHeight();
         String method = (factor > 1) ? "bicubic" : "none";
         ImagePlus imgIn = (resize) ? img.resize((int)(imgWidth*factor), (int)(imgHeight*factor), 1, method) : new Duplicator().run(img);
-        
+        String model = cellposeModelsPath+cellposeModel;
         // Set Cellpose settings
-        CellposeTaskSettings settings = new CellposeTaskSettings(cellposeModel, 1, cellposeDiameter, cellposeEnvDirPath);
+        CellposeTaskSettings settings = new CellposeTaskSettings(model, 1, cellposeDiameter, cellposeEnvDir);
         settings.setCellProbTh(cellposeMaskThreshold);
         settings.setFlowTh(cellposeFlowThreshold);
         settings.useGpu(useGPU);
