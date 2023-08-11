@@ -12,7 +12,7 @@
         <packaging>jar</packaging>
 	<name>Orion_Toolbox</name>
 	<description>
-           Development toolbox classes for Orion 
+           Toolbox for Orion plugins 
         </description>
 
 	<developers>
@@ -29,7 +29,7 @@
 		</developer>
                 <developer>
                     <id>heloise</id>
-                    <name>Heloise Monnet</name>
+                    <name>Héloïse Monnet</name>
                     <email>heloise.monnet@college-de-france.fr</email>
                     <url></url>
                     <organization>CIRB, Collège de France</organization>

@@ -1,11 +1,11 @@
-package Find_Focus;
-
+package Orion_Toolbox;
 
 import ij.*;
 import ij.process.*;
 import java.awt.*;
 import ij.plugin.filter.*;
 import ij.measure.*;
+
 
 /** Select focused slices from a Z stack. Based on the autofocus algorithm "Normalized Variance" (Groen et al., 1985; Yeo et
  * al., 1993). However, the images are first treated by a sobel edge filter. This provided a better result for fluorescent bead images.
@@ -17,12 +17,10 @@ import ij.measure.*;
  * Fifth version 2020-2-17 output to result table
  * By TSENG Qingzong; qztseng at gmail.com
  */
- 
 public class Find_focused_slices implements PlugInFilter, Measurements {
 
     double percent, vThr;
     boolean consecutive, edge;
-    
     
     public void setParams(double percent, double vThr, boolean edge, boolean consecutive) {
         this.percent = percent;
@@ -30,7 +28,6 @@ public class Find_focused_slices implements PlugInFilter, Measurements {
         this.edge = edge;
         this.consecutive = consecutive;
     }
-   
 
     public ImagePlus run(ImagePlus imp) {       
         ImageStack stack = imp.getStack();
@@ -105,11 +102,11 @@ public class Find_focused_slices implements PlugInFilter, Measurements {
         focusstack.setStack("Focused slices of " + name + "_" + percent + "%", stack2);
         focusstack.setCalibration(imp.getCalibration());
         if (focusstack.getStackSize() == 1) {
-            focusstack.setProperty("Label", "Z_" + fS);
+            focusstack.setProp("Label", fS);
         }
         return(focusstack);
     }
-
+    
     double calVar(ImageProcessor ip) {
         double variance = 0;
         int W = ip.getWidth();
@@ -135,12 +132,10 @@ public class Find_focused_slices implements PlugInFilter, Measurements {
         return variance;
     }
     
-    
     public void run(ImageProcessor arg0) {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
-    
     public int setup(String arg0, ImagePlus arg1) {
         throw new UnsupportedOperationException("Not supported yet.");
     }

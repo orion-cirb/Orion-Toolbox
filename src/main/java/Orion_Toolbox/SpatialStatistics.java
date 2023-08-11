@@ -1,4 +1,4 @@
-package Orion_Tools;
+package Orion_Toolbox;
        
 import ij.IJ;
 import ij.gui.Plot;

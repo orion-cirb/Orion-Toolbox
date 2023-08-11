@@ -1,8 +1,5 @@
-package Orion_Tools;
+package Orion_Toolbox;
 
-import Orion_Tools.StardistOrion.StarDist2D;
-import Orion_Tools.Cellpose.CellposeTaskSettings;
-import Orion_Tools.Cellpose.CellposeSegmentImgPlusAdvanced;
 import features.TubenessProcessor;
 import ij.IJ;
 import ij.ImagePlus;
@@ -20,7 +17,6 @@ import java.awt.Font;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -31,8 +27,6 @@ import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
 import loci.formats.meta.IMetadata;
-import loci.plugins.BF;
-import loci.plugins.in.ImporterOptions;
 import loci.plugins.util.ImageProcessorReader;
 import mcib3d.geom.Object3D;
 import mcib3d.geom.Objects3DPopulation;
@@ -58,30 +52,34 @@ import mcib3d.spatial.sampler.SpatialRandomHardCore;
 import mcib3d.utils.ThreadUtil;
 import net.haesleinhuepf.clij.clearcl.ClearCLBuffer;
 import net.haesleinhuepf.clij2.CLIJ2;
-import net.haesleinhuepf.clijx.imagej2.ImageJ2Tubeness;
 import net.haesleinhuepf.clijx.bonej.BoneJSkeletonize3D;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.util.ArrayUtils;
+import Orion_Toolbox.StardistOrion.StarDist2D;
+import Orion_Toolbox.Cellpose.CellposeTaskSettings;
+import Orion_Toolbox.Cellpose.CellposeSegmentImgPlusAdvanced;
 
 
 /**
- * @author Orion-CIRB
+ * @author orion-cirb
  */
-public class Tools {
+public class Utils {
     
-    private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
-    private Object syncObject = new Object();
+    public Calibration cal;
         
-     // Omnipose
-    private final String omniposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/omnipose" : System.getProperty("user.home")+"\\miniconda3\\envs\\OmniPose";
+    // CLIJ
+    private final CLIJ2 clij2 = CLIJ2.getInstance();
     
+    // Stardist
+    private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
+       
     // Cellpose
     public final String cellposeEnvDir = IJ.isWindows()? System.getProperty("user.home")+File.separator+"miniconda3"+File.separator+"envs"+File.separator+"CellPose" : "/opt/miniconda3/envs/cellpose";
     private final String cellposeModelsPath = (IJ.isWindows()) ? System.getProperty("user.home")+"\\.cellpose\\models\\" : System.getProperty("user.home")+"/.cellpose/models/"; 
     
-    public Calibration cal;
-    private final CLIJ2 clij2 = CLIJ2.getInstance();
-
+    // Omnipose
+    private final String omniposeEnvDirPath = (IJ.isLinux()) ? "/opt/miniconda3/envs/omnipose" : System.getProperty("user.home")+"\\miniconda3\\envs\\OmniPose";
+    
     
     /**
      * Display a message in the ImageJ console and status bar
@@ -93,25 +91,32 @@ public class Tools {
     }
     
     
+    /*
+    ********************************************************
+     * Some checks
+    ********************************************************
+     */
+    
     /**
-     * Check that needed modules are installed
+     * Check that needed module is installed
      * @param className
-     * @param PluginName
+     * @param pluginName
      * @return 
      */
-    public boolean checkInstalledModules(String className, String PluginName) {
+    public boolean checkInstalledModules(String className, String pluginName) {
         ClassLoader loader = IJ.getClassLoader();
         try {
             loader.loadClass(className);
         } catch (ClassNotFoundException e) {
-            IJ.showMessage("Error", PluginName+" not installed, please install from update site");
+            IJ.showMessage("Error", pluginName+" not installed, please install it from Update Sites");
             return false;
         }
         return true;
     }
     
-     /**
-     * Check that required StarDist models are present in Fiji models folder
+    
+    /**
+     * Check that required StarDist model is present in Fiji.app/models/ folder
      * @param stardistModel
      * @return 
      */
@@ -120,17 +125,17 @@ public class Tools {
         File[] modelList = stardistModelsPath.listFiles(filter);
         int index = ArrayUtils.indexOf(modelList, new File(stardistModelsPath+File.separator+stardistModel));
         if (index == -1) {
-            IJ.showMessage("Error", stardistModel + " StarDist model not found, please add it in Fiji models folder");
+            IJ.showMessage("Error", stardistModel + " StarDist model not found, please add it in Fiji.app/models/ folder");
             return false;
         }
         return true;
     }
     
+    
     /**
-     * Find stardist models in Fiji models folder
-     * 
+     * Find Stardist models present in Fiji.app/models/ folder
      * @return 
-    */
+     */
     public String[] findStardistModels() {
         FilenameFilter filter = (dir, name) -> name.endsWith(".zip");
         File[] modelList = stardistModelsPath.listFiles(filter);
@@ -141,16 +146,14 @@ public class Tools {
     }
 
     
-    
-    /**
+    /*
     ********************************************************
-     * Clij filters
+     * CLIJ functions
     ********************************************************
      */
     
-    
     /**
-     * Test if GPU
+     * Test if there is a GPU
      * @return 
      */
     public boolean isGPU() {
@@ -159,7 +162,7 @@ public class Tools {
     }
     
     /**
-     * 3D Median filter using CLIJ2
+     * 3D median filter in a box using CLIJ2
      * @param img
      * @param sizeXY
      * @param sizeZ
@@ -613,6 +616,17 @@ public class Tools {
     
     
     /**
+     * Find best focused slice in stack
+     */
+    public ImagePlus findBestFocus(ImagePlus img) {
+        Find_focused_slices focus = new Find_focused_slices();
+        focus.setParams(100, 0, false, false);
+        ImagePlus imgFocus = focus.run(img);
+        //int focusedSlice =  Integer.valueOf(imgNuclei.getProp("Label"));    
+        return(imgFocus);
+    }
+    
+    /**
      * Find background image intensity
      * with/without roi
      * Z projection over min intensity + read stats (median/mean) intensity
@@ -1002,7 +1016,10 @@ public class Tools {
         
         // Run Omnipose
         CellposeSegmentImgPlusAdvanced cellpose = new CellposeSegmentImgPlusAdvanced(settings, imgIn);
+        //PrintStream console = System.out;
+        //System.setOut(new NullPrintStream());
         ImagePlus imgOut = cellpose.run();
+        //System.setOut(console);
         
         ImageProcessor imgOutProc = (resize) ? imgOut.getProcessor().resize(imgWidth, imgHeight, false) : imgOut.getProcessor();
         imgOut = new ImagePlus("", imgOutProc);
