@@ -58,6 +58,10 @@ import org.scijava.util.ArrayUtils;
 import Orion_Toolbox.StardistOrion.StarDist2D;
 import Orion_Toolbox.Cellpose.CellposeTaskSettings;
 import Orion_Toolbox.Cellpose.CellposeSegmentImgPlusAdvanced;
+import inra.ijpb.binary.BinaryImages;
+import inra.ijpb.binary.distmap.ChamferDistanceTransform3DFloat;
+import inra.ijpb.binary.distmap.ChamferMask3D;
+import inra.ijpb.binary.distmap.DistanceTransform3D;
 
 
 /**
@@ -783,6 +787,24 @@ public class Utils {
         clij2.release(imgCLMap);
         imgMap.setCalibration(cal);
         return(imgMap);
+    }
+   
+    /**
+     * Compute distance map chamfer 3D or inverse
+     * with Morpholib
+     * @param img
+     * @param inverse
+     * @return 
+     */
+    public ImagePlus distanceMapChamfer3D(ImagePlus img, boolean inverse) {   
+        IJ.showStatus("Computing distance map...");
+        ImagePlus imgDup = new Duplicator().run(img);
+        ChamferMask3D mask = ChamferMask3D.SVENSSON_3_4_5_7;
+        boolean normalize = true;
+        DistanceTransform3D dist = new ChamferDistanceTransform3DFloat(mask, normalize);
+        ImageStack StackResult = dist.distanceMap(imgDup.getStack());
+        ImagePlus imgResult = new ImagePlus("", StackResult);
+        return(imgResult);
     }
     
     /**
