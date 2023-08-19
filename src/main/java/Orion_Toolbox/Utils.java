@@ -58,6 +58,7 @@ import org.scijava.util.ArrayUtils;
 import Orion_Toolbox.StardistOrion.StarDist2D;
 import Orion_Toolbox.Cellpose.CellposeTaskSettings;
 import Orion_Toolbox.Cellpose.CellposeSegmentImgPlusAdvanced;
+import ij.plugin.filter.ThresholdToSelection;
 import inra.ijpb.binary.BinaryImages;
 import inra.ijpb.binary.distmap.ChamferDistanceTransform3DFloat;
 import inra.ijpb.binary.distmap.ChamferMask3D;
@@ -616,6 +617,29 @@ public class Utils {
         zproject.setImage(img);
         zproject.doProjection();
        return(zproject.getProjection());
+    }
+    
+    public ImagePlus fillOutsideObj(Object3DInt obj, ImagePlus img) {
+        //IJ.setForegroundColor(0, 0, 0);
+        ImagePlus imgFill = new Duplicator().run(img);
+        ImageHandler imh = ImageHandler.wrap(img).createSameDimensions();
+        obj.drawObject(imh, 255);
+        ThresholdToSelection tts = new ThresholdToSelection();
+        ImagePlus mask = imh.getImagePlus();
+        for (int z = 1; z <= img.getNSlices(); z++) {
+            mask.setSlice(z);
+            IJ.setAutoThreshold(mask, "Default dark no-reset");            
+            tts.setup("", mask);
+            tts.run(mask);
+            Roi roi = tts.convert(mask.getProcessor());
+            imgFill.setSlice(z);
+            imgFill.setRoi(roi);
+            IJ.run(imgFill, "Clear", "slice");
+            imgFill.updateAndDraw();
+        }
+        flush_close(mask);
+        imh.closeImagePlus();
+        return(imgFill);
     }
     
     
