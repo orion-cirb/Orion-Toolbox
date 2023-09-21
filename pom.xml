@@ -9,7 +9,7 @@
 	<groupId>cirb.orion</groupId>
 	<artifactId>Orion_Toolbox</artifactId>
 	<version>1.0.0</version>
-	<name>Orion_Toolbox</name>
+        <packaging>jar</packaging>
 	<description>
            Toolbox for Orion plugins 
         </description>
@@ -62,9 +62,9 @@
 		<system>GitHub Actions</system>
 		<url>https://github.com/orion-cirb/Orion_ToolboxJ/actions</url>
 	</ciManagement>
-
+    
 	<properties>
-            <package-name>cirb.orion</package-name>
+            <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
             <license.licenseName>lgpl_v3</license.licenseName>
             <license.copyrightOwners>CIRB.</license.copyrightOwners>
 	</properties>
@@ -197,32 +197,29 @@
         
             
 	 <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>2.3.2</version>
-                    <configuration>
-                        <source>1.8</source>
-                        <target>1.8</target>
-                    </configuration>
-                </plugin>
-			
-            </plugins>
-        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.3.2</version>
                 <configuration>
-                    <showDeprecation>true</showDeprecation>
-                    <source>8</source>
-                    <target>8</target>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
 
 </project>
