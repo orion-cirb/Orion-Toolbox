@@ -68,7 +68,7 @@ import inra.ijpb.binary.distmap.DistanceTransform3D;
 /**
  * @author orion-cirb
  */
-public class Utils {
+public class Tools {
     
     public Calibration cal;
         
