@@ -1,7 +1,5 @@
 package Orion_Toolbox.StardistOrion;
 
-
-import Orion_Toolbox.Tools;
 import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -114,7 +112,7 @@ public class StarDist2D extends StarDist2DBase implements Command {
             roiPositionActive = roiPosition;
         PrintStream console = System.out;
         System.out.println("Starting StarDist ...");
-        System.setOut(new Orion_Toolbox.NullPrintStream());
+        System.setOut(new NullPrintStream());
         try {
             final HashMap<String, Object> paramsCNN = new HashMap<>();
             paramsCNN.put("input", input);

@@ -58,8 +58,8 @@ import org.scijava.util.ArrayUtils;
 import Orion_Toolbox.StardistOrion.StarDist2D;
 import Orion_Toolbox.Cellpose.CellposeTaskSettings;
 import Orion_Toolbox.Cellpose.CellposeSegmentImgPlusAdvanced;
+import ij.gui.WaitForUserDialog;
 import ij.plugin.filter.ThresholdToSelection;
-import inra.ijpb.binary.BinaryImages;
 import inra.ijpb.binary.distmap.ChamferDistanceTransform3DFloat;
 import inra.ijpb.binary.distmap.ChamferMask3D;
 import inra.ijpb.binary.distmap.DistanceTransform3D;
@@ -70,10 +70,10 @@ import inra.ijpb.binary.distmap.DistanceTransform3D;
  */
 public class Tools {
     
-    public Calibration cal;
+    public Calibration cal = new Calibration();
         
     // CLIJ
-    private final CLIJ2 clij2 = CLIJ2.getInstance();
+    private final CLIJ2 clij2 = checkInstalledModules("net.haesleinhuepf.clij2.CLIJ2.getInstance", "clij") ? CLIJ2.getInstance() : null;
     
     // Stardist
     private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
@@ -533,16 +533,18 @@ public class Tools {
      * @return 
      */
     public Calibration findImageCalib(IMetadata meta) {
-        cal.pixelWidth = meta.getPixelsPhysicalSizeX(0).getValue();
+        // read image calibration
+        cal.pixelWidth = meta.getPixelsPhysicalSizeX(0).value().doubleValue();
         cal.pixelHeight = cal.pixelWidth;
         if (meta.getPixelsPhysicalSizeZ(0) != null)
-            cal.pixelDepth = meta.getPixelsPhysicalSizeZ(0).getValue();
+            cal.pixelDepth = meta.getPixelsPhysicalSizeZ(0).value().doubleValue();
         else
             cal.pixelDepth = 1;
         cal.setUnit("microns");
         System.out.println("XY calibration = " + cal.pixelWidth + ", Z calibration = " + cal.pixelDepth);
         return(cal);
     }
+    
     
     /**
      * Find channels name and None to end of list
@@ -999,7 +1001,7 @@ public class Tools {
      * @throws java.io.IOException
      */
     public Objects3DIntPopulation stardistObjectsPop(ImagePlus img, float factor, boolean resize, int blockRad, String stardistModel,
-            double stardistProbThresh, double stardistOverlayThresh) throws IOException {
+            double stardistProbThresh, double stardistOverlayThresh, boolean show) throws IOException {
         Object syncObject = new Object();
         double stardistPercentileBottom = 0.2;
         double stardistPercentileTop = 99.8;
@@ -1027,6 +1029,10 @@ public class Tools {
         ImagePlus imgOut = (resize) ? star.getLabelImagePlus().resize(imgWidth, imgHeight, 1, "none") : star.getLabelImagePlus();       
         ImagePlus imgLabels = star.associateLabels();
         imgLabels.setCalibration(cal); 
+        if (show) {
+            imgLabels.show();
+            new WaitForUserDialog("labelled image").show();
+        }
         flush_close(imgOut);
         Objects3DIntPopulation pop = new Objects3DIntPopulation(ImageHandler.wrap(imgLabels));      
         flush_close(imgLabels);
@@ -1046,7 +1052,7 @@ public class Tools {
      * @return 
     */
     public Objects3DIntPopulation cellposeDetection(ImagePlus img, String cellposeModel, int cellposeDiameter, 
-            double cellposeMaskThreshold, double cellposeFlowThreshold, int factor, boolean resize, boolean useGPU){
+            double cellposeMaskThreshold, double cellposeFlowThreshold, int factor, boolean resize, boolean useGPU, boolean show){
 
         // Resize image to be in a StarDist-friendly scale
         int imgWidth = img.getWidth();
@@ -1070,6 +1076,10 @@ public class Tools {
         ImageProcessor imgOutProc = (resize) ? imgOut.getProcessor().resize(imgWidth, imgHeight, false) : imgOut.getProcessor();
         imgOut = new ImagePlus("", imgOutProc);
         imgOut.setCalibration(cal);
+        if (show) {
+            imgOut.show();
+            new WaitForUserDialog("labelled image").show();
+        }
         Objects3DIntPopulation pop = new Objects3DIntPopulation(ImageHandler.wrap(imgOut));
         
         // Close images
@@ -1092,7 +1102,7 @@ public class Tools {
      * @return 
     */
     public Objects3DIntPopulation omniposeDetection(ImagePlus img, String omniposeModel, int omniposeDiameter, 
-            double omniposeMaskThreshold, double omniposeFlowThreshold, int factor, boolean resize, boolean useGPU){
+            double omniposeMaskThreshold, double omniposeFlowThreshold, int factor, boolean resize, boolean useGPU, boolean show){
         
         // Resize image to be in a StarDist-friendly scale
         int imgWidth = img.getWidth();
@@ -1112,10 +1122,14 @@ public class Tools {
         // Run Omnipose
         CellposeSegmentImgPlusAdvanced cellpose = new CellposeSegmentImgPlusAdvanced(settings, imgIn);
         ImagePlus imgOut = cellpose.run();
-        
+         if (show) {
+            imgOut.show();
+            new WaitForUserDialog("labelled image").show();
+        }
         ImageProcessor imgOutProc = (resize) ? imgOut.getProcessor().resize(imgWidth, imgHeight, false) : imgOut.getProcessor();
         imgOut = new ImagePlus("", imgOutProc);
         imgOut.setCalibration(cal);
+        
         Objects3DIntPopulation pop = new Objects3DIntPopulation(ImageHandler.wrap(imgOut));
         
         // Close images
