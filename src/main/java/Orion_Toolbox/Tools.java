@@ -73,7 +73,7 @@ public class Tools {
     public Calibration cal = new Calibration();
         
     // CLIJ
-    private final CLIJ2 clij2 = checkInstalledModules("net.haesleinhuepf.clij2.CLIJ2.getInstance", "clij") ? CLIJ2.getInstance() : null;
+    private final CLIJ2 clij2 = checkInstalledModules("net.haesleinhuepf.clij2.CLIJ2", "clij") ? CLIJ2.getInstance() : null;
     
     // Stardist
     private final File stardistModelsPath = new File(IJ.getDirectory("imagej")+File.separator+"models");
