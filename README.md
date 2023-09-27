@@ -4,7 +4,7 @@ The orion-toolbox library is the core for most of the orion plugins developed.
 Main developers are Héloïse Monnet and Philippe Mailly.
 
 Please follow these instructions to download and compile the source code :
-### Add Orion toolbox in pom.xml
+**Add Orion toolbox in pom.xml**
 <dependency>
     <groupId>cirb.orion</groupId>
     <artifactId>Orion-Toolbox</artifactId>
@@ -15,4 +15,5 @@ Please follow these instructions to download and compile the source code :
     <id>orion</id>
    <url>url>https://github.com/orion-cirb/Orion.Toolbox/releases/</url>
  </repository>
+ 
 
