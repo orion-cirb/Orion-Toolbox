@@ -49,18 +49,18 @@
 		</developer>
 	</developers>
         <scm>
-            <connection>scm:git:https://github.com/orion-cirb/Orion_Toolbox</connection>
+            <connection>scm:git:https://github.com/orion-cirb/Orion.Toolbox</connection>
             <developerConnection>scm:git:git@github.com:orion-cirb/Orion_Toolbox</developerConnection>
             <tag>HEAD</tag>
-            <url>https://github.com/orion-cirb/Orion_Toolbox</url>
+            <url>https://github.com/orion-cirb/Orion.Toolbox</url>
 	</scm>
         <issueManagement>
 		<system>GitHub Issues</system>
-		<url>https://github.com/orion-cirb/Orion_Toolbox/issues</url>
+		<url>https://github.com/orion-cirb/Orion.Toolbox/issues</url>
 	</issueManagement>
 	<ciManagement>
 		<system>GitHub Actions</system>
-		<url>https://github.com/orion-cirb/Orion_ToolboxJ/actions</url>
+		<url>https://github.com/orion-cirb/Orion.ToolboxJ/actions</url>
 	</ciManagement>
     
 	<properties>
