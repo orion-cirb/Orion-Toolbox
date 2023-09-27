@@ -1,4 +1,4 @@
-package Orion_Toolbox;
+package Orion.Toolbox;
 
 import features.TubenessProcessor;
 import ij.IJ;
@@ -55,9 +55,9 @@ import net.haesleinhuepf.clij2.CLIJ2;
 import net.haesleinhuepf.clijx.bonej.BoneJSkeletonize3D;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.util.ArrayUtils;
-import Orion_Toolbox.StardistOrion.StarDist2D;
-import Orion_Toolbox.Cellpose.CellposeTaskSettings;
-import Orion_Toolbox.Cellpose.CellposeSegmentImgPlusAdvanced;
+import Orion.Toolbox.StardistOrion.StarDist2D;
+import Orion.Toolbox.Cellpose.CellposeTaskSettings;
+import Orion.Toolbox.Cellpose.CellposeSegmentImgPlusAdvanced;
 import ij.gui.WaitForUserDialog;
 import ij.plugin.filter.ThresholdToSelection;
 import inra.ijpb.binary.distmap.ChamferDistanceTransform3DFloat;

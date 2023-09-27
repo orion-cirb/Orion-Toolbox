@@ -1,5 +1,5 @@
 
-package Orion_Toolbox;
+package Orion.Toolbox;
 
 import java.util.HashMap;
 import mcib3d.image3d.ImageHandler;

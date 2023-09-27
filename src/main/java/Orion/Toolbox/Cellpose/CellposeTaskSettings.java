@@ -1,4 +1,4 @@
-package Orion_Toolbox.Cellpose;
+package Orion.Toolbox.Cellpose;
 
 
 public class CellposeTaskSettings {

@@ -1,4 +1,4 @@
-package Orion_Toolbox.StardistOrion;
+package Orion.Toolbox.StardistOrion;
 
 public class Point2D {
     

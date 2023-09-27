@@ -1,4 +1,4 @@
-package Orion_Toolbox;
+package Orion.Toolbox;
 
 import ij.*;
 import ij.process.*;
