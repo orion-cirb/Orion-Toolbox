@@ -1,4 +1,4 @@
-**Orion_Toolbox**
+**Orion-Toolbox**
 
 The orion-toolbox library is the core for most of the orion plugins developed.
 Main developers are Héloïse Monnet and Philippe Mailly.
